@@ -1,4 +1,6 @@
 # Predictive coding tutorial in Pytorch
+This is the companion repo for the tutorial [toddmorrill.github.io](https://toddmorrill.github.io/machine%20learning/unsupervised-predictive-coding/).
+
 This repository has been forked from [Rafal Bogacz's group](https://github.com/ToddMorrill/PredictiveCoding).
 
 ## Usage

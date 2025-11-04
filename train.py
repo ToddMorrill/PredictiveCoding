@@ -4,6 +4,7 @@ Examples:
     $ python train.py
 """
 import os
+import multiprocessing
 
 from matplotlib import pyplot as plt
 import numpy as np
@@ -44,23 +45,6 @@ def load_data(batch_size=500, shuffle_train=True):
         f'# train images: {len(train_dataset)} and # test images: {len(test_dataset)}'
     )
     return train_loader, test_loader
-
-
-
-def test(model, test_loader, device):
-    model.eval()
-    correct = 0
-    total = 0
-    total_loss = 0
-    for data, label in test_loader:
-        data, label = data.to(device), label.to(device)
-        pred = model(data)
-        _, predicted = torch.max(pred, -1)
-        total += label.size(0)
-        correct += (predicted == label).sum().item()
-    model.train()
-    accuracy = round(correct / total, 4)
-    return accuracy
 
 
 def create_model(input_size, hidden_size, output_size, activation_fn, device, **kwargs):
@@ -117,18 +101,23 @@ def run_experimental_setting(config):
     wandb.init(project=config['project'],
                group=config['group'],
                config=config,
-               reinit=True,
                mode=config['mode'])
 
     # reset seed to ensure reproducibility
     torch.manual_seed(42)
-    train_loader, test_loader = load_data()
+    train_loader, test_loader = load_data(batch_size=config['batch_size'])
     device = config['device']
-    if config['workers'] != 0:
+    if config['workers'] == 0:
         # 0 means no parallelism, while -1 means use all available cores and > 0 means use that many cores
         # so if using parallelism, restrict number of threads to avoid CPU oversubscription
         # otherwise, just let it rip
         torch.set_num_threads(1)
+    elif config['workers'] == -1:
+        num_cpus = multiprocessing.cpu_count()
+        torch.set_num_threads(num_cpus)
+    else:
+        torch.set_num_threads(config['workers'])
+
     model = create_model(**config)
     # unpack the optimizer kwargs, because the trainer expects them as dictionaries
     optimizer_x_kwargs = {'lr': config['x_lr']}
@@ -256,15 +245,16 @@ def record_latent_representations(model, config, use_train=False, loader=None):
 
 def main():
     config = {
-        'device': 'cpu', # change to 'cuda' if GPU is available
+        'device': 'cuda', # change to 'cpu' if GPU is unavailable
         'workers': -1,
         'output_size': 784,
         'hidden_size': 256,
-        'input_size': 128,
+        'input_size': 256,
         'activation_fn': torch.nn.ReLU,
         'x_lr': 0.01,
         'p_lr': 0.001,
         'epochs': 10,
+        'batch_size': 512,
         'T': 150,
         'linear_prob_hold_epochs': 1,
         'linear_probe_steps': 1,
@@ -307,7 +297,7 @@ def main():
     # put the model in eval mode
     model.eval()
 
-        # use the existing classifier and knn buffer to evaluate on the test set
+    # use the existing classifier and knn buffer to evaluate on the test set
     # chunk into batches of 32
     batch_size = 500
     linear_probe_correct = 0

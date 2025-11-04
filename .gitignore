@@ -5,3 +5,6 @@ data/*
 ~*
 .gitignore*
 wandb/*
+.venv/
+.vscode/
+*__pycache__/*
